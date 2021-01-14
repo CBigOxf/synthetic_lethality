@@ -25,5 +25,8 @@ the functions to work:
 * METABRIC_expression.Rdata (expression matrix transposed from cBioPortal, samples as rows, genes as columns)
 * metabric_mutations.txt (can be downloded from cBioPortal)
 
+MYC neutral cases or not (MYC diploidy) can be run using the same functions and respectivelly commenting out the line of code each time that
+incudes the filter, such as "dplyr::filter(MYC == 0)". 
+
 ### References
 
