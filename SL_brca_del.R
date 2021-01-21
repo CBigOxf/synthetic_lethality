@@ -17,11 +17,9 @@ SL_brca_del <- function()
   # This prevents any output while running - can deactivate with command : CloseAllConnections()
   
   sink("tp_brca_del.txt")
-  
   # Get working directory for all required libraries
   lib_dir <- paste0(getwd(),"/libs")
   .libPaths( c( lib_dir , .libPaths() ) )
-  
   print("Loading libraries required...")
   
   # load all required libraries
@@ -37,14 +35,12 @@ SL_brca_del <- function()
   ratio2 <- c() 
   mt <- c() # mutational frequency for each gene
   tp_flag <- c() # twenty percent mutated flag, true or false
-  
+  c_matrix <- c() ### contingency table freqs
   print("Reading BRCA - TCGA data-set mutations...")
   mut_matrix_csv <- data.table::fread(file = paste0(input_dir,"/brca_mutations.txt"))
-
   print("Loading expression data...")
   load(file=paste0(input_dir,"/brca_expression.RData"))
   print("Done...")
-  
   print("Reading BRCA = TCGA  CNA calls...")
   brca_calls <- as.data.frame(read.table(file = paste0(input_dir,"/brca_CNA.txt"), sep = '\t', header = TRUE))
   brca_calls <- brca_calls[,-2]
@@ -61,10 +57,8 @@ SL_brca_del <- function()
   calls <- calls %>% dplyr::mutate(Tumor_Sample_Barcode = str_replace_all(Tumor_Sample_Barcode, "\\.", "-"))
   calls <-  calls %>%  dplyr::filter(MYC == 0)
   all_genes <- unique(colnames(expr_matrix_csv)[2:ncol(expr_matrix_csv)])
-  
   gene_list <- all_genes
   gene_list_mutations <- unique(mut_matrix_csv$Hugo_Symbol)
-  
   user <- length(gene_list) # can change to scan first x genes (1:x)
   limit <- 100 # how many pvalues and genes to plot (top in ascending order)
   
@@ -88,7 +82,8 @@ SL_brca_del <- function()
     
     check_2 <- nrow(df)
     check <- check_1/check_2 # mutational frequency for the gene
-
+    check_all <- paste0(check_1,"/",check_2," (",check,")")
+    
     df <- df[order(df[,'Variant_Classification']), ]
     df[,'Variant_Classification'][is.na(df[,'Variant_Classification'])] <- "WT"
     df$SIFT[str_detect(df$SIFT, "deleterious") == TRUE] <- "True"
@@ -113,10 +108,10 @@ SL_brca_del <- function()
     df_small <-  df_small  %>%  dplyr::mutate (TARGET=replace(TARGET, TARGET==1, "gain")) 
     df_small <-  df_small  %>%  dplyr::mutate (TARGET=replace(TARGET, TARGET==2, "amplification")) 
     
-    df_small$AMPL_MUT  <- ifelse(df_small$SIFT == "True" & df_small$TARGET == "amplification", 1, 0)
-    df_small$NON_AMPL_MUT  <- ifelse(df_small$SIFT == "True" & df_small$TARGET != "amplification", 1, 0)
-    df_small$AMPL_WT  <- ifelse(df_small$status == "WT" & df_small$TARGET == "amplification", 1, 0)
-    df_small$NON_AMPL_WT  <- ifelse(df_small$status == "WT" &  df_small$TARGET != "amplification", 1, 0)
+    df_small$AMPL_MUT  <- ifelse(df_small$SIFT == "True" & (df_small$TARGET == "amplification" | df_small$TARGET == "gain"), 1, 0)
+    df_small$NON_AMPL_MUT  <- ifelse(df_small$SIFT == "True" & (df_small$TARGET != "amplification" & df_small$TARGET != "gain"), 1, 0)
+    df_small$AMPL_WT  <- ifelse(df_small$status == "WT" & (df_small$TARGET == "amplification" | df_small$TARGET == "gain"), 1, 0)
+    df_small$NON_AMPL_WT  <- ifelse(df_small$status == "WT" &  (df_small$TARGET != "amplification" & df_small$TARGET != "gain"), 1, 0)
     
     df_small <- df_small[order(df_small[,'status']), ]
     
@@ -127,8 +122,8 @@ SL_brca_del <- function()
     c4 <- table(df_small$NON_AMPL_WT)  # D
     
     c <- matrix(c(c1[2],c2[2],c3[2],c4[2]),2,2)
-    
-    colnames(c) <- c(paste0(gene," amplified"),paste0(gene," not-amplified (deep_deletion/diploid)"))
+    c_string <- paste0("(",c1[2],",",c3[2],",",c2[2],",",c4[2],")")
+    colnames(c) <- c(paste0(gene," amplified/gain"),paste0(gene," not amplified/gain (deep_deletion/diploid)"))
     rownames(c) <- c(paste0(c_gene," deleterious"),paste0(c_gene," WT"))
     c[is.na(c)] <- 0
     print("'######################################################################")
@@ -139,47 +134,50 @@ SL_brca_del <- function()
     ratio1 <- c(ratio1, c[1,1]/(c[1,1]+c[2,1]))
     ratio2 <- c(ratio2,c[1,2]/(c[1,2]+c[2,2]))
     
-    if ( check >= 0.2 ) {
+    if ( check >= 0.1 ) {
       tp_flag <- c(tp_flag,"TRUE")
     }
     else{
       tp_flag <- c(tp_flag,"FALSE")
     }
     master_pvalues <- c(master_pvalues, res$p.value)
-    mt <- c(mt, check)
-    
+    mt <- c(mt, check_all)
+    c_matrix <- c(c_matrix,c_string) ###
     print(res)
     
   }
   
   close(pb)
   names(master_pvalues) <- gene_list[1:user]
-  
   df <- matrix(data = , nrow = user, ncol = 1) 
   df[, 1] = master_pvalues
   row.names(df) <- names(master_pvalues)
   colnames(df) <- "pvalues"
-  
   df <- data.frame(df)
   
   # add ratio columns
   df <- add_column(df, ratios1 = 0)
   df <- add_column(df, ratios2 = 0)
+  df <- add_column(df, ctn = 0) ###
   df <- add_column(df,tp_flags = "FALSE")
   df <- add_column(df,Mutational_Freq = 0)
   df$ratios1 <- ratio1
   df$ratios2 <- ratio2
+  df$ctn <- c_matrix ###
   df$tp_flags <- tp_flag
   df$Mutational_Freq <- mt
   df <- df %>% arrange(desc(-pvalues))
-  # adjust p values
+
+  colnames(df)[2] <- "AMPLIFIED_DELETERIOUS/(AMPLIFIED_DELETERIOUS+AMPLIFIED_WT)"
+  colnames(df)[3] <- "NON_AMPLIFIED_DELETERIOUS/(NON_AMPLIFIED_DELETERIOUS+NON_AMPLIFIED_WT)"
+  colnames(df)[4] <- "contingency table frequencies (A,B,C,D)"  ###
+  
   dfshort <- df %>% dplyr::filter(tp_flags=="TRUE") # & pvalues < 0.05)
   dfshort <- add_column(dfshort, adjusted_pvalue = 0)
   dfshort$adjusted_pvalue <- p.adjust(dfshort$pvalues, method = "BH")
-  write.csv(dfshort,"TCGA_BRCA_DEL_MT_VS_WT_adjpvalues.csv")
   
-  colnames(df)[2] <- "AMPLIFIED_DELETERIOUS/(AMPLIFIED_DELETERIOUS+AMPLIFIED_WT)"
-  colnames(df)[3] <- "NON_AMPLIFIED_DELETERIOUS/(NON_AMPLIFIED_DELETERIOUS+NON_AMPLIFIED_WT)"
+  colnames(df)[5] <- "Mutational_Freq > 10%"
+  write.csv(dfshort,"TCGA_BRCA_DEL_MT_VS_WT_adjpvalues.csv")
   write.csv(as.data.frame(df), "genome_results_brca_del.csv")
   
   if (user>limit) {df2 <- head(df,limit)}

@@ -1,14 +1,13 @@
 SL_brca <- function()
   
 {
-  
   ###########################################################################
   # This function implements the SL genome scan for TCGA_BRCA dataset
   # It scans through the genome looking for which genes are co-mutated or WT
   # based on tumour samples that contain information for AGO2 and MYC CNA
   ###########################################################################
   
-  # source the data-set ; the .zip folder contais all data in //inputs subfolder
+  # source the data-set ; the .zip folder contains all data in //inputs subfolder
   # change as appropriate ...
   
   input_dir <- paste0(getwd(),"//inputs")
@@ -36,6 +35,7 @@ SL_brca <- function()
   ratio1 <- c() 
   ratio2 <- c() 
   mt <- c() # mutational frequency for each gene
+  c_matrix <- c() ### contingency table freqs
   tp_flag <- c() # twenty percent mutated flag, true or false
   
   print("Reading BRCA - TCGA data-set mutations...")
@@ -63,7 +63,6 @@ SL_brca <- function()
   
   gene_list <- all_genes
   gene_list_mutations <- unique(mut_matrix_csv$Hugo_Symbol)
-  
   user <- length(gene_list) # can change to scan first x genes (1:x)
   limit <- 100 # how many pvalues and genes to plot (top in ascending order)
   
@@ -87,6 +86,8 @@ SL_brca <- function()
     
     check_2 <- nrow(df)
     check <- check_1/check_2 # mutational frequency for the gene
+    check_all <- paste0(check_1,"/",check_2," (",check,")")
+    
     df <- df[order(df[,'Variant_Classification']), ]
     df[,'Variant_Classification'][is.na(df[,'Variant_Classification'])] <- "WT"
     df <- tibble::add_column(df, status = "MT")
@@ -111,10 +112,10 @@ SL_brca <- function()
     df_small <-  df_small  %>%  dplyr::mutate (TARGET=replace(TARGET, TARGET==1, "gain")) 
     df_small <-  df_small  %>%  dplyr::mutate (TARGET=replace(TARGET, TARGET==2, "amplification")) 
     
-    df_small$AMPL_MUT  <- ifelse(df_small$status == "MT" & df_small$TARGET == "amplification", 1, 0)
-    df_small$NON_AMPL_MUT  <- ifelse(df_small$status == "MT" & df_small$TARGET != "amplification", 1, 0)
-    df_small$AMPL_WT  <- ifelse(df_small$status == "WT" & df_small$TARGET == "amplification", 1, 0)
-    df_small$NON_AMPL_WT  <- ifelse(df_small$status == "WT" &  df_small$TARGET != "amplification", 1, 0)
+    df_small$AMPL_MUT  <- ifelse(df_small$status == "MT" & (df_small$TARGET == "amplification" | df_small$TARGET == "gain"), 1, 0)
+    df_small$NON_AMPL_MUT  <- ifelse(df_small$status == "MT" & (df_small$TARGET != "amplification" & df_small$TARGET != "gain"), 1, 0)
+    df_small$AMPL_WT  <- ifelse(df_small$status == "WT" & (df_small$TARGET == "amplification" | df_small$TARGET == "gain"), 1, 0)
+    df_small$NON_AMPL_WT  <- ifelse(df_small$status == "WT" &  (df_small$TARGET != "amplification" & df_small$TARGET != "gain"), 1, 0)
     
     df_small <- df_small[order(df_small[,'status']), ]
     
@@ -125,8 +126,8 @@ SL_brca <- function()
     c4 <- table(df_small$NON_AMPL_WT)  # D
     
     c <- matrix(c(c1[2],c2[2],c3[2],c4[2]),2,2)
-    
-    colnames(c) <- c(paste0(gene," amplified"),paste0(gene," not-amplified (deep_deletion/diploid)"))
+    c_string <- paste0("(",c1[2],",",c3[2],",",c2[2],",",c4[2],")")
+    colnames(c) <- c(paste0(gene," amplified/gain"),paste0(gene," not amplified/gain (deep_deletion/diploid)"))
     rownames(c) <- c(paste0(c_gene," mutated"),paste0(c_gene," WT"))
     c[is.na(c)] <- 0
     print("'######################################################################")
@@ -137,15 +138,15 @@ SL_brca <- function()
     ratio1 <- c(ratio1, c[1,1]/(c[1,1]+c[2,1]))
     ratio2 <- c(ratio2,c[1,2]/(c[1,2]+c[2,2]))
     
-    if ( check >= 0.2 ) {
+    if ( check >= 0.1 ) {
       tp_flag <- c(tp_flag,"TRUE")
     }
     else{
       tp_flag <- c(tp_flag,"FALSE")
     }
     master_pvalues <- c(master_pvalues, res$p.value)
-    mt <- c(mt, check)
-    
+    mt <- c(mt, check_all)
+    c_matrix <- c(c_matrix,c_string) ###
     print(res)
     
   }
@@ -163,21 +164,25 @@ SL_brca <- function()
   # add ratio columns
   df <- add_column(df, ratios1 = 0)
   df <- add_column(df, ratios2 = 0)
+  df <- add_column(df, ctn = 0) ###
   df <- add_column(df,tp_flags = "FALSE")
   df <- add_column(df,Mutational_Freq = 0)
   df$ratios1 <- ratio1
   df$ratios2 <- ratio2
+  df$ctn <- c_matrix ###
   df$tp_flags <- tp_flag
   df$Mutational_Freq <- mt
   df <- df %>% arrange(desc(-pvalues))
   # adjust p values
+  colnames(df)[2] <- "AMPLIFIED_MUTATED/(AMPLIFIED_MUTATED+AMPLIFIED_WT)"
+  colnames(df)[3] <- "NON_AMPLIFIED_MUTATED/(NON_AMPLIFIED_MUTATED+NON_AMPLIFIED_WT)"
+  colnames(df)[4] <- "contingency table frequencies (A,B,C,D)"  ###
   dfshort <- df %>% dplyr::filter(tp_flags=="TRUE") # & pvalues < 0.05)
   dfshort <- add_column(dfshort, adjusted_pvalue = 0)
   dfshort$adjusted_pvalue <- p.adjust(dfshort$pvalues, method = "BH")
-  write.csv(dfshort,"TCGA_BRCA_MT_VS_WT_adjpvalues.csv")
   
-  colnames(df)[2] <- "AMPLIFIED_MUTATED/(AMPLIFIED_MUTATED+AMPLIFIED_WT)"
-  colnames(df)[3] <- "NON_AMPLIFIED_MUTATED/(NON_AMPLIFIED_MUTATED+NON_AMPLIFIED_WT)"
+  colnames(df)[5] <- "Mutational_Freq > 10%"
+  write.csv(dfshort,"TCGA_BRCA_MT_VS_WT_adjpvalues.csv")
   write.csv(as.data.frame(df), "genome_results_brca.csv")
   
   if (user>limit) {df2 <- head(df,limit)}

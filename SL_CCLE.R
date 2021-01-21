@@ -1,18 +1,15 @@
 SL_CCLE <- function()
   
 {
-  
   ###########################################################################
   # This function implements the SL genome scan for CCLE_20Q2 dataset
   # It scans through the genome looking for which genes are co-mutated or WT
   # based on tumour samples that contain information for AGO2 and MYC CNA
   ###########################################################################
   
-  # source the data-set ; the .zip folder contais all data in //inputs subfolder
+  # source the data-set ; the .zip folder contains all data in //inputs subfolder
   # change as appropriate ...
   input_dir <- paste0(getwd(),"//inputs")
-  
-  
   print("Loading CCLE data-sets...")
   load(file=paste0(input_dir,"/CCLE_20Q2.RData"))
   print("Done...")
@@ -26,17 +23,14 @@ SL_CCLE <- function()
   # Sink is a command to transfer all console output to a .txt file here
   # This prevents any output while running - can deactivate with command : CloseAllConnections()
   sink(paste0("tp_",disease_name_bkp,".txt"))
-  
   lib_dir <- paste0(getwd(),"/libs")
   .libPaths( c( lib_dir , .libPaths() ) )
-  
   print("Loading libraries required...")
   list.of.packages <- c("dplyr","ggplot2","ggrepel","ggpubr","tibble","stringr",
                         "tidyverse", "data.table", 
                         "stringi","openxlsx", "data.table" )
   invisible(lapply(list.of.packages, library, character.only = TRUE))
   colnames(expr_matrix_csv)[1] <- "CELLLINE"
-  
   
   if (disease_name == "CCLE.csv") {
     print("Running through all cancer cell lines in CCLE...")
@@ -61,10 +55,9 @@ SL_CCLE <- function()
   ratio1 <- c()
   ratio2 <- c()
   mt <- c() # mutational frequency for each gene
+  c_matrix <- c() ### contingency table freqs
   tp_flag <- c() # twenty percent mutated flag, true or false
   all_genes <- colnames(expr_matrix_csv)
-  #all_genes <- unique(mut_matrix_csv$Hugo_Symbol)
-  
   gene_list <-   sapply(strsplit(all_genes[2:length(all_genes)], split='..', fixed=TRUE),function(x) (x[1]))
   gene_list_IDs <- sapply(strsplit(all_genes[2:length(all_genes)], split='..', fixed=TRUE),function(x) (x[2]))
   gene_list_IDs <- sapply(str_sub(gene_list_IDs,1,-2),function(x) (x[1]))
@@ -105,6 +98,8 @@ SL_CCLE <- function()
     df <- merge(df_t,target_mutations, by = "Tumor_Sample_Barcode", all = TRUE)
     check_2 <- nrow(df)
     check <- check_1/check_2 # mutational frequency for the gene
+    check_all <- paste0(check_1,"/",check_2," (",check,")")
+    
     
     df <- df[order(df[,'Variant_Classification']), ]
     df[,'Variant_Classification'][is.na(df[,'Variant_Classification'])] <- "WT"
@@ -136,24 +131,25 @@ SL_CCLE <- function()
     df_small <- tibble::add_column(df_small, AMPL_WT = 0)
     df_small <- tibble::add_column(df_small, NON_AMPL_WT = 0)
     
-    df_small$AMPL_MUT  <- ifelse(df_small$status == "MT" & df_small$TARGET == "amplification", 1, 0)
-    df_small$NON_AMPL_MUT  <- ifelse(df_small$status == "MT" & df_small$TARGET != "amplification", 1, 0)
-    df_small$AMPL_WT  <- ifelse(df_small$status == "WT" & df_small$TARGET == "amplification", 1, 0)
-    df_small$NON_AMPL_WT  <- ifelse(df_small$status == "WT" & df_small$TARGET != "amplification", 1, 0)
+    df_small$AMPL_MUT  <- ifelse(df_small$status == "MT" & (df_small$TARGET == "amplification" | df_small$TARGET == "gain"), 1, 0)
+    df_small$NON_AMPL_MUT  <- ifelse(df_small$status == "MT" & (df_small$TARGET != "amplification" & df_small$TARGET != "gain"), 1, 0)
+    df_small$AMPL_WT  <- ifelse(df_small$status == "WT" & (df_small$TARGET == "amplification" | df_small$TARGET == "gain"), 1, 0)
+    df_small$NON_AMPL_WT  <- ifelse(df_small$status == "WT" & (df_small$TARGET != "amplification" & df_small$TARGET != "gain"), 1, 0)
     
     df_small <- na.omit(df_small)
     df_small <- df_small[order(df_small[,'status']), ]
     
     # prepare matrix for Fisher's exact test:
     
-    c1 <- table(df_small$AMPL_MUT)
-    c2 <- table(df_small$AMPL_WT)
-    c3 <- table(df_small$NON_AMPL_MUT)
-    c4 <- table(df_small$NON_AMPL_WT)
+    c1 <- table(df_small$AMPL_MUT) # A
+    c2 <- table(df_small$AMPL_WT) # C
+    c3 <- table(df_small$NON_AMPL_MUT) # B
+    c4 <- table(df_small$NON_AMPL_WT) # D
     
     c <- matrix(c(c1[2],c2[2],c3[2],c4[2]),2,2)
+    c_string <- paste0("(",c1[2],",",c3[2],",",c2[2],",",c4[2],")")
     
-    colnames(c) <- c(paste0(gene," amplified"),paste0(gene," not-amplified (deep_deletion/diploid)"))
+    colnames(c) <- c(paste0(gene," amplified/gain"),paste0(gene," not amplified/gain (deep_deletion/diploid)"))
     rownames(c) <- c(paste0(c_gene," mutated"),paste0(c_gene," WT"))
     c[is.na(c)] <- 0
     print("'######################################################################")
@@ -166,7 +162,7 @@ SL_CCLE <- function()
     ratio2 <- c(ratio2,c[1,2]/(c[1,2]+c[2,2]))
     
     
-    if ( check >= 0.2 ) {
+    if ( check >= 0.1 ) {
       
       tp_flag <- c(tp_flag,"TRUE")
     }
@@ -176,8 +172,8 @@ SL_CCLE <- function()
     
     
     master_pvalues <- c(master_pvalues, res$p.value)
-    mt <- c(mt, check)
-    
+    mt <- c(mt, check_all)
+    c_matrix <- c(c_matrix,c_string) ###
     print(res)
     
     
@@ -189,28 +185,30 @@ SL_CCLE <- function()
   df[, 1] = master_pvalues
   row.names(df) <- names(master_pvalues)
   colnames(df) <- "pvalues"
-  
   df <- data.frame(df)
-  
   # add ratio columns
   df <- add_column(df, ratios1 = 0)
   df <- add_column(df, ratios2 = 0)
+  df <- add_column(df, ctn = 0) ###
   df <- add_column(df,tp_flags = "FALSE")
   df <- add_column(df,Mutational_Freq = 0)
   df$ratios1 <- ratio1
   df$ratios2 <- ratio2
+  df$ctn <- c_matrix ###
   df$tp_flags <- tp_flag
   df$Mutational_Freq <- mt
-  
   df <- df %>% arrange(desc(-pvalues))
-  # adjust p values
+
+  #contingency table is A,B,C,D , A,B in same 1st row, B,D second row
+  colnames(df)[2] <- "AMPLIFIED_MUTATED/(AMPLIFIED_MUTATED+AMPLIFIED_WT)"
+  colnames(df)[3] <- "NON_AMPLIFIED_MUTATED/(NON_AMPLIFIED_MUTATED+NON_AMPLIFIED_WT)"
+  colnames(df)[4] <- "contingency table frequencies (A,B,C,D)"  ###
+
   dfshort <- df %>% dplyr::filter(tp_flags=="TRUE") # & pvalues < 0.05)
   dfshort <- add_column(dfshort, adjusted_pvalue = 0)
   dfshort$adjusted_pvalue <- p.adjust(dfshort$pvalues, method = "BH")
+  colnames(df)[5] <- "Mutational_Freq > 10%"  ###
   write.csv(dfshort,paste0("CCLE_MT_VS_WT_adjpvalues_",disease_name))
-  
-  colnames(df)[2] <- "AMPLIFIED_MUTATED/(AMPLIFIED_MUTATED+AMPLIFIED_WT)"
-  colnames(df)[3] <- "NON_AMPLIFIED_MUTATED/(NON_AMPLIFIED_MUTATED+NON_AMPLIFIED_WT)"
   write.csv(as.data.frame(df), paste0("genome_results_",disease_name))
   
   if (user>limit) {df2 <- head(df,limit)}
