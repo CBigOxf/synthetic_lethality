@@ -85,7 +85,8 @@ SL_CCLE <- function()
   df_t <- merge(df_t,calls, by  = "NAME")
   
   # filter by MYC diploidy:
-  #df_t <- df_t %>% dplyr::filter(MYC == 0)
+  
+  df_t <- df_t %>% dplyr::filter(MYC == 0)
   colnames(df_t)[2] <- "Tumor_Sample_Barcode"
   
   for (i in 1:user) {
@@ -110,7 +111,7 @@ SL_CCLE <- function()
     
     
     # -2 or Deep Deletion indicates a deep loss, possibly a homozygous deletion
-    # -1 or Shallow Deletion indicates a shallow loss, possibly a heterozygous deletion
+    # -1 or Shallow Deletion indicates a shallow loss, possibley a heterozygous deletion
     # 0 is diploid
     # 1 or Gain indicates a low-level gain (a few additional copies, often broad)
     # 2 or Amplification indicate a high-level amplification (more copies, often focal)
@@ -146,7 +147,7 @@ SL_CCLE <- function()
     c4 <- table(df_small$NON_AMPL_WT) # D
     
     c <- matrix(c(c1[2],c2[2],c3[2],c4[2]),2,2)
-    c_string <- paste0(c1[2],"|",c3[2],"|",c2[2],"|",c4[2])
+    c_string <- paste0("(",c1[2],",",c3[2],",",c2[2],",",c4[2],")")
     
     colnames(c) <- c(paste0(gene," amplified/gain"),paste0(gene," not amplified/gain (deep_deletion/diploid)"))
     rownames(c) <- c(paste0(c_gene," mutated"),paste0(c_gene," WT"))
@@ -179,6 +180,7 @@ SL_CCLE <- function()
   }
   close(pb)
   names(master_pvalues) <- gene_list[1:user]
+  
   df <- matrix(data = , nrow = user, ncol = 1) 
   df[, 1] = master_pvalues
   row.names(df) <- names(master_pvalues)
@@ -200,7 +202,7 @@ SL_CCLE <- function()
   #contingency table is A,B,C,D , A,B in same 1st row, B,D second row
   colnames(df)[2] <- "AMPLIFIED_MUTATED/(AMPLIFIED_MUTATED+AMPLIFIED_WT)"
   colnames(df)[3] <- "NON_AMPLIFIED_MUTATED/(NON_AMPLIFIED_MUTATED+NON_AMPLIFIED_WT)"
-  colnames(df)[4] <- "contingency table frequencies (A|B|C|D)"  ###
+  colnames(df)[4] <- "contingency table frequencies (A,B,C,D)"  ###
 
   dfshort <- df %>% dplyr::filter(tp_flags=="TRUE") # & pvalues < 0.05)
   dfshort <- add_column(dfshort, adjusted_pvalue = 0)

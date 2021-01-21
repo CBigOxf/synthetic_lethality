@@ -85,7 +85,7 @@ SL_CCLE_del <- function()
   df_t <- merge(df_t,calls, by  = "NAME")
   
   # filter by MYC diploidy:
-  #df_t <- df_t %>% dplyr::filter(MYC == 0)
+  df_t <- df_t %>% dplyr::filter(MYC == 0)
   colnames(df_t)[2] <- "Tumor_Sample_Barcode"
   
   for (i in 1:user) {
@@ -148,7 +148,7 @@ SL_CCLE_del <- function()
     c4 <- table(df_small$NON_AMPL_WT)
     
     c <- matrix(c(c1[2],c2[2],c3[2],c4[2]),2,2)
-    c_string <- paste0(c1[2],"|",c3[2],"|",c2[2],"|",c4[2])
+    c_string <- paste0("(",c1[2],",",c3[2],",",c2[2],",",c4[2],")")
     colnames(c) <- c(paste0(gene," amplified/gain"),paste0(gene," not amplified/gain (deep_deletion/diploid)"))
     rownames(c) <- c(paste0(c_gene," deleterious"),paste0(c_gene," WT"))
     c[is.na(c)] <- 0
@@ -198,7 +198,7 @@ SL_CCLE_del <- function()
   
   colnames(df)[2] <- "AMPLIFIED_DELETERIOUS/(AMPLIFIED_DELETERIOUS+AMPLIFIED_WT)"
   colnames(df)[3] <- "NON_AMPLIFIED_DELETERIOUS/(NON_AMPLIFIED_DELETERIOUS+NON_AMPLIFIED_WT)"
-  colnames(df)[4] <- "contingency table frequencies (A|B|C|D)"  ###
+  colnames(df)[4] <- "contingency table frequencies (A,B,C,D)"  ###
   
   dfshort <- df %>% dplyr::filter(tp_flags=="TRUE") # & pvalues < 0.05)
   dfshort <- add_column(dfshort, adjusted_pvalue = 0)

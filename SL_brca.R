@@ -58,7 +58,7 @@ SL_brca <- function()
   calls <- add_column(calls, Tumor_Sample_Barcode = colnames(brca_calls))
   calls <- calls[2:nrow(calls),]
   calls <- calls %>% dplyr::mutate(Tumor_Sample_Barcode = str_replace_all(Tumor_Sample_Barcode, "\\.", "-"))
-  #calls <-  calls %>%  dplyr::filter(MYC == 0)
+  calls <-  calls %>%  dplyr::filter(MYC == 0)
   all_genes <- unique(colnames(expr_matrix_csv)[2:ncol(expr_matrix_csv)])
   
   gene_list <- all_genes
@@ -126,7 +126,7 @@ SL_brca <- function()
     c4 <- table(df_small$NON_AMPL_WT)  # D
     
     c <- matrix(c(c1[2],c2[2],c3[2],c4[2]),2,2)
-    c_string <- paste0(c1[2],"|",c3[2],"|",c2[2],"|",c4[2])
+    c_string <- paste0("(",c1[2],",",c3[2],",",c2[2],",",c4[2],")")
     colnames(c) <- c(paste0(gene," amplified/gain"),paste0(gene," not amplified/gain (deep_deletion/diploid)"))
     rownames(c) <- c(paste0(c_gene," mutated"),paste0(c_gene," WT"))
     c[is.na(c)] <- 0
@@ -176,7 +176,7 @@ SL_brca <- function()
   # adjust p values
   colnames(df)[2] <- "AMPLIFIED_MUTATED/(AMPLIFIED_MUTATED+AMPLIFIED_WT)"
   colnames(df)[3] <- "NON_AMPLIFIED_MUTATED/(NON_AMPLIFIED_MUTATED+NON_AMPLIFIED_WT)"
-  colnames(df)[4] <- "contingency table frequencies (A|B|C|D)"  ###
+  colnames(df)[4] <- "contingency table frequencies (A,B,C,D)"  ###
   dfshort <- df %>% dplyr::filter(tp_flags=="TRUE") # & pvalues < 0.05)
   dfshort <- add_column(dfshort, adjusted_pvalue = 0)
   dfshort$adjusted_pvalue <- p.adjust(dfshort$pvalues, method = "BH")
