@@ -99,8 +99,6 @@ SL_TCGA_del <- function()
     df2$SIFT[str_detect(df2$SIFT, "deleterious") == TRUE] <- "True"
     df2$status  <- ifelse(df2$Variant_Classification == "WT", "WT", "MT")
     df_small <- df2
-    write.csv(df_small,"df_small.csv")
-    
 
 
     df_small <- tibble::add_column(df_small, AMPL_MUT = 0)
