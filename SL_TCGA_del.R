@@ -2,7 +2,7 @@ SL_TCGA_del <- function()
   
 {
   ###########################################################################
-  # This function implements the SL genome scan for TCGA_BRCA dataset
+  # This function implements the SL genome scan for TCGA dataset
   # It scans through the genome looking for which genes are co-mutated or WT
   # based on tumour samples that contain information for AGO2 and MYC CNA
   ###########################################################################
