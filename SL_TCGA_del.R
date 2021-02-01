@@ -1,8 +1,9 @@
-SL_TCGA <- function()
+SL_TCGA_del <- function()
   
 {
+  
   ###########################################################################
-  # This function implements the SL genome scan for TCGA dataset
+  # This function implements the SL genome scan for TCGA_BRCA dataset
   # It scans through the genome looking for which genes are co-mutated or WT
   # based on tumour samples that contain information for AGO2 and MYC CNA
   ###########################################################################
@@ -15,12 +16,10 @@ SL_TCGA <- function()
   # Sink is a command to transfer all console output to a .txt file here
   # This prevents any output while running - can deactivate with command : CloseAllConnections()
   
-  # sink("tp_TCGA.txt")
-  
+  sink("tp_TCGA_del.txt")
   # Get working directory for all required libraries
   lib_dir <- paste0(getwd(),"/libs")
   .libPaths( c( lib_dir , .libPaths() ) )
-  
   print("Loading libraries required...")
   
   # load all required libraries
@@ -35,9 +34,9 @@ SL_TCGA <- function()
   ratio1 <- c() 
   ratio2 <- c() 
   mt <- c() # mutational frequency for each gene
-  c_matrix <- c() ### contingency table freqs
   tp_flag <- c() # twenty percent mutated flag, true or false
-  
+  c_matrix <- c() ### contingency table freqs
+
   print("Reading TCGA data-set mutations...")
   mut_matrix_csv <- as.data.frame(readRDS(paste0(input_dir,"/tcga_pancan_mutation_df.rds")))
   colnames(mut_matrix_csv) <- sapply(strsplit(colnames(mut_matrix_csv), split='..', fixed=TRUE),function(x) (x[1]))
@@ -59,9 +58,11 @@ SL_TCGA <- function()
   colnames(calls)[4] <- "MYC"
   calls <- calls[,c(2,3,4)]
   calls <-  calls %>%  dplyr::filter(MYC == 0)
-  all_genes <- unique(colnames(expr_matrix_csv)[2:ncol(expr_matrix_csv)])
   
+  
+  all_genes <- unique(colnames(expr_matrix_csv)[2:ncol(expr_matrix_csv)])
   gene_list <- all_genes
+  gene_list_mutations <- unique(mut_matrix_csv$Hugo_Symbol)
   user <- length(gene_list) # can change to scan first x genes (1:x)
   limit <- 100 # how many pvalues and genes to plot (top in ascending order)
   
@@ -70,9 +71,6 @@ SL_TCGA <- function()
   #####################################################################################################
   gene <- "AGO2"
   pb <- winProgressBar(title = "progress bar", min = 0,max = user,width = 300)
-  
-  
-  
   df <- expr_matrix_csv %>%  dplyr::select(c("Tumor_Sample_Barcode"))
   df <- df %>% dplyr::mutate(Tumor_Sample_Barcode = str_replace_all(Tumor_Sample_Barcode, "\\.", "-"))
   df$Tumor_Sample_Barcode <- sapply(substr(df$Tumor_Sample_Barcode, start = 1, stop = 15),function(x) (x[1]))
@@ -83,9 +81,12 @@ SL_TCGA <- function()
   for (i in 1:user) {
     setWinProgressBar(pb,i,title = paste(round(i / user * 100, 0),  title_cancer))
     c_gene <- gene_list[i]
+    
+    df <- expr_matrix_csv %>%  dplyr::select(c("Tumor_Sample_Barcode"))
+    df <- df %>% dplyr::mutate(Tumor_Sample_Barcode = str_replace_all(Tumor_Sample_Barcode, "\\.", "-"))
+    df <- merge(df,calls,by = "Tumor_Sample_Barcode", all = TRUE)
     target_mutations <- mut_matrix_csv %>%  dplyr::filter(Hugo_Symbol %in% c_gene  &
                                                             !(Variant_Classification %in% "Silent") )
-    
     check_1 <- nrow(target_mutations)
     df2 <- merge(df,target_mutations, by = "Tumor_Sample_Barcode", all = TRUE)
     check_2 <- nrow(df2)
@@ -95,17 +96,21 @@ SL_TCGA <- function()
     df2 <- df2[order(df2[,'Variant_Classification']), ]
     df2[,'Variant_Classification'][is.na(df2[,'Variant_Classification'])] <- "WT"
     df2 <- tibble::add_column(df2, status = "MT")
-    
+    df2$SIFT[str_detect(df2$SIFT, "deleterious") == TRUE] <- "True"
+    df2 <- tibble::add_column(df2, status = "MT")
     df2$status  <- ifelse(df2$Variant_Classification == "WT", "WT", "MT")
     df_small <- df2
     
+    
+
+
     df_small <- tibble::add_column(df_small, AMPL_MUT = 0)
     df_small <- tibble::add_column(df_small, NON_AMPL_MUT = 0)
     df_small <- tibble::add_column(df_small, AMPL_WT = 0)
     df_small <- tibble::add_column(df_small, NON_AMPL_WT = 0)
     
     # -2 or Deep Deletion indicates a deep loss, possibly a homozygous deletion
-    # -1 or Shallow Deletion indicates a shallow loss, possibly a heterozygous deletion
+    # -1 or Shallow Deletion indicates a shallow loss, possibley a heterozygous deletion
     # 0 is diploid
     # 1 or Gain indicates a low-level gain (a few additional copies, often broad)
     # 2 or Amplification indicate a high-level amplification (more copies, often focal)
@@ -116,8 +121,8 @@ SL_TCGA <- function()
     df_small <-  df_small  %>%  dplyr::mutate (TARGET=replace(TARGET, TARGET==1, "gain")) 
     df_small <-  df_small  %>%  dplyr::mutate (TARGET=replace(TARGET, TARGET==2, "amplification")) 
     
-    df_small$AMPL_MUT  <- ifelse(df_small$status == "MT" & (df_small$TARGET == "amplification" | df_small$TARGET == "gain"), 1, 0)
-    df_small$NON_AMPL_MUT  <- ifelse(df_small$status == "MT" & (df_small$TARGET != "amplification" & df_small$TARGET != "gain"), 1, 0)
+    df_small$AMPL_MUT  <- ifelse(df_small$SIFT == "True" & (df_small$TARGET == "amplification" | df_small$TARGET == "gain"), 1, 0)
+    df_small$NON_AMPL_MUT  <- ifelse(df_small$SIFT == "True" & (df_small$TARGET != "amplification" & df_small$TARGET != "gain"), 1, 0)
     df_small$AMPL_WT  <- ifelse(df_small$status == "WT" & (df_small$TARGET == "amplification" | df_small$TARGET == "gain"), 1, 0)
     df_small$NON_AMPL_WT  <- ifelse(df_small$status == "WT" &  (df_small$TARGET != "amplification" & df_small$TARGET != "gain"), 1, 0)
     
@@ -132,7 +137,7 @@ SL_TCGA <- function()
     c <- matrix(c(c1[2],c2[2],c3[2],c4[2]),2,2)
     c_string <- paste0("(",c1[2],",",c3[2],",",c2[2],",",c4[2],")")
     colnames(c) <- c(paste0(gene," amplified/gain"),paste0(gene," not amplified/gain (deep_deletion/diploid)"))
-    rownames(c) <- c(paste0(c_gene," mutated"),paste0(c_gene," WT"))
+    rownames(c) <- c(paste0(c_gene," deleterious"),paste0(c_gene," WT"))
     c[is.na(c)] <- 0
     print("'######################################################################")
     print(c)
@@ -157,12 +162,10 @@ SL_TCGA <- function()
   
   close(pb)
   names(master_pvalues) <- gene_list[1:user]
-  
   df <- matrix(data = , nrow = user, ncol = 1) 
   df[, 1] = master_pvalues
   row.names(df) <- names(master_pvalues)
   colnames(df) <- "pvalues"
-  
   df <- data.frame(df)
   
   # add ratio columns
@@ -177,20 +180,21 @@ SL_TCGA <- function()
   df$tp_flags <- tp_flag
   df$Mutational_Freq <- mt
   df <- df %>% arrange(desc(-pvalues))
-  # adjust p values
-  colnames(df)[2] <- "AMPLIFIED_MUTATED/(AMPLIFIED_MUTATED+AMPLIFIED_WT)"
-  colnames(df)[3] <- "NON_AMPLIFIED_MUTATED/(NON_AMPLIFIED_MUTATED+NON_AMPLIFIED_WT)"
+
+  colnames(df)[2] <- "AMPLIFIED_DELETERIOUS/(AMPLIFIED_DELETERIOUS+AMPLIFIED_WT)"
+  colnames(df)[3] <- "NON_AMPLIFIED_DELETERIOUS/(NON_AMPLIFIED_DELETERIOUS+NON_AMPLIFIED_WT)"
   colnames(df)[4] <- "contingency table frequencies (A,B,C,D)"  ###
+  
   dfshort <- df %>% dplyr::filter(tp_flags=="TRUE") # & pvalues < 0.05)
   dfshort <- add_column(dfshort, adjusted_pvalue = 0)
   dfshort$adjusted_pvalue <- p.adjust(dfshort$pvalues, method = "BH")
   
   colnames(df)[5] <- "Mutational_Freq > 10%"
-  write.csv(dfshort,"TCGA_MT_VS_WT_adjpvalues.csv")
-  write.csv(as.data.frame(df), "genome_results_TCGA.csv")
+  write.csv(dfshort,"TCGA_DEL_MT_VS_WT_adjpvalues.csv")
+  write.csv(as.data.frame(df), "genome_results_TCGA_del.csv")
   
   if (user>limit) {df2 <- head(df,limit)}
-  png("sp_TCGA.png", width=1920, height=1080, res=100)
+  png("sp_TCGA_del.png", width=1920, height=1080, res=100)
   sp <- ggplot(data = df2,aes(x=factor(row.names(df2), levels=row.names(df2)), y = pvalues ))+
     geom_point(size = 4,color = dplyr::case_when(df2$pvalues > 0.05 ~ "#FF0000",
                                                  df2$pvalues < 0.05 ~ "#00CC00",
@@ -210,7 +214,7 @@ SL_TCGA <- function()
     font("xy.text", size = 10) +
     font("legend.text",size = 10) +
     theme(axis.text.x=element_text(size=10, angle=90,hjust=0.95,vjust=0.02)) +
-    ggtitle(paste0("Genome-wide comparison of ", gene, " amplification versus MT/WT"))
+    ggtitle(paste0("Genome-wide comparison of ", gene, " amplification versus Deleterious/WT"))
   
   
   print(sp)
