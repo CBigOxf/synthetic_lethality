@@ -1,7 +1,6 @@
 SL_TCGA_del <- function()
   
 {
-  
   ###########################################################################
   # This function implements the SL genome scan for TCGA_BRCA dataset
   # It scans through the genome looking for which genes are co-mutated or WT
@@ -16,7 +15,8 @@ SL_TCGA_del <- function()
   # Sink is a command to transfer all console output to a .txt file here
   # This prevents any output while running - can deactivate with command : CloseAllConnections()
   
-  sink("tp_TCGA_del.txt")
+  #sink("tp_TCGA_del.txt")
+  #
   # Get working directory for all required libraries
   lib_dir <- paste0(getwd(),"/libs")
   .libPaths( c( lib_dir , .libPaths() ) )
@@ -94,13 +94,12 @@ SL_TCGA_del <- function()
     check_all <- paste0(check_1,"/",check_2," (",check,")")
     
     df2 <- df2[order(df2[,'Variant_Classification']), ]
-    df2[,'Variant_Classification'][is.na(df2[,'Variant_Classification'])] <- "WT"
+    df2 <- df2 %>% mutate(Variant_Classification = if_else(is.na(Variant_Classification), "WT", "MT"))
     df2 <- tibble::add_column(df2, status = "MT")
     df2$SIFT[str_detect(df2$SIFT, "deleterious") == TRUE] <- "True"
-    df2 <- tibble::add_column(df2, status = "MT")
     df2$status  <- ifelse(df2$Variant_Classification == "WT", "WT", "MT")
     df_small <- df2
-    
+    write.csv(df_small,"df_small.csv")
     
 
 
