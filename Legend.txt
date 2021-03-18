@@ -1,0 +1,49 @@
+Table 1: AGO2 amplification/non-amplification versus 
+mutation/WT of genes with mutation frequency >20%, 
+please select first for mutation frequency and then adjust the p value, 
+please show both p value and adjusted p value
+
+Table 2: AGO2 amplification/non-amplification versus 
+deleterious mutation/WT of every other gene with mutation frequency >20%, 
+please select first for mutation frequency and then adjust the p value, 
+please show both p value and adjusted p value
+
+    
+Table 3: AGO2 amplification/non-amplification versus 
+mutation/WT of genes with mutation frequency >20% in Myc neutral cases, 
+please select first for mutation frequency and Myc, and then adjust the p value, 
+please show both p value and adjusted p value
+
+    
+Table 4: AGO2 amplification/non-amplification versus 
+deleterious mutation/WT of every other gene with 
+mutation frequency >20% in Myc neutral cases, 
+please select first for mutation frequency and then adjust the p value, 
+please show both p value and adjusted p value
+
+    
+Table 5: in TCGA the same as Table 1
+Table 6: in TCGA the same as Table 2
+Table 7: in TCGA the same as Table 3 
+Table 8: in TCGA the same as Table 4
+
+Table 9 : METABRIC WT/MT the same as Table 1
+Table 10 : MYC METABRIC WT/MT the same as Table 3
+
+
+Contingency tables : 
+
+         AMPL/GAIN                   NON AMP/GAIN
+MT         A                            B 
+
+WT         C                            D
+
+
+
+
+Contingency tables : 
+
+                AMPL/GAIN                   NON AMP/GAIN
+DELETERIOUS         A                           B
+
+WT                  C                           D
